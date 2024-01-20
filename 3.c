@@ -13,7 +13,7 @@ void set_array_zero(int, int, int *);
 
 int main(int argc, char *argv[])
 {
-	int myid, numprocs, tag = 1, N, M, T;
+	int myid, numprocs, tag = 1, N, M, T, n_row_per_proc = 0;
 	double tt0, ttf;
 	const char *filename = "3_input.in";
 	FILE *in_file;
@@ -108,12 +108,11 @@ int main(int argc, char *argv[])
 	MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&T, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-	ttf = MPI_Wtime();
-	//printf("%d > %10f\n", myid, (ttf-tt0));
+
 	//printf("[%d]: N,M,T is %d %d %d\n", myid, N,M,T);
 	
 	a = (int*)calloc(N*M, sizeof(int)); 
-	temp_a = (int*)calloc(N*M, sizeof(int)); 
+	
 	if (myid == 0)
         {
 		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
@@ -136,6 +135,13 @@ int main(int argc, char *argv[])
 	}
 	else 
 		MPI_Recv (a, N*M, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
+		
+	if (N % numprocs == 0)
+		n_row_per_proc = N/numprocs;
+	else
+		n_row_per_proc = N/numprocs + 1;
+		
+	temp_a = (int*)calloc(n_row_per_proc*M, sizeof(int)); 
 	
 	//memcpy(temp_a, a, N*M*sizeof(int));
 	
@@ -150,32 +156,40 @@ int main(int argc, char *argv[])
         printf("[%d]: sum: %d \n", myid, sum); */
 	//printf("[%d]: After Bcast, buf is %f\n", myid, a[2][2]);
 	//display(N, M, myid, temp_a, numprocs);
+	
 	for(int l = 0; l<T;l++)
 	{
-		int live_nb = 0, k = 0;
-		//int n_row_per_proc = ceil((float)N/numprocs);
-		for (int i = myid; i < N; i += numprocs) {
+		
+		//MPI_Scatter(a, n_row_per_proc*M, MPI_INT, temp_a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
+		int live_nb = 0, k = 0, r = 0;
+		for (int i = myid*n_row_per_proc; i < (myid+1)*n_row_per_proc && i < N; i++) {
 			for (int j = 0; j < M ; j++){
-				k = get_array_loc(N, i, j);
+				k = get_array_loc(M, i, j);
 				live_nb = cal_live_neighbor(a, numprocs, i, j, N, M);
 				//printf("<%d,%d> live_nb: %d \n", i,j, live_nb); 
 				int q = live_or_die(live_nb, a[k]);
-				//printf("<%d,%d> q: %d \n", i,j, q); 
-				temp_a[k] = q;
+				r = k % (n_row_per_proc*M);
+				//printf("[%d]<%d,%d> q: %d \n",myid, i,j, q); 
+				temp_a[r] = q;
 			}
 		}
-		memcpy(a, temp_a, N*M*sizeof(int));
+		//memcpy(a, temp_a, N*M*sizeof(int));
+		MPI_Gather (temp_a, n_row_per_proc*M, MPI_INT, a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Bcast(a, N*M, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 	printf("\nAfter ----\n");
-	display(N, M, myid, temp_a, numprocs);
+	if(myid==0)
+		display(N, M, myid, a, numprocs);
         printf("\n"); 
         int sum = 0;
         for (int i = 0; i< N*M ; i++)
-        	sum = sum + temp_a[i];
+        	sum = sum + a[i];
         printf("[%d]: sum: %d \n", myid, sum); 
 	
 	if (a != NULL) free(a);
-	//free(temp_a);
+	if (temp_a != NULL) free(temp_a);
+	ttf = MPI_Wtime();
+	printf("%d > %10f\n", myid, (ttf-tt0));
 	MPI_Finalize();
 	return 0;
 }
@@ -188,30 +202,30 @@ int cal_live_neighbor(int *a, int numprocs, int i, int j, int N, int M)
 	{
 		if (j > 0 && j < M-1)
 		{
-			sum += a[get_array_loc(N, i-1, j-1)];
-			sum += a[get_array_loc(N, i-1, j)];
-			sum += a[get_array_loc(N, i-1, j+1)];
-			sum += a[get_array_loc(N, i, j+1)];
-			sum += a[get_array_loc(N, i+1, j+1)];
-			sum += a[get_array_loc(N, i+1, j)];
-			sum += a[get_array_loc(N, i+1, j-1)];
-			sum += a[get_array_loc(N, i, j-1)];
+			sum += a[get_array_loc(M, i-1, j-1)];
+			sum += a[get_array_loc(M, i-1, j)];
+			sum += a[get_array_loc(M, i-1, j+1)];
+			sum += a[get_array_loc(M, i, j+1)];
+			sum += a[get_array_loc(M, i+1, j+1)];
+			sum += a[get_array_loc(M, i+1, j)];
+			sum += a[get_array_loc(M, i+1, j-1)];
+			sum += a[get_array_loc(M, i, j-1)];
 		}
 		else if (j > 0)
 		{
-			sum += a[get_array_loc(N, i-1, j-1)];
-			sum += a[get_array_loc(N, i-1, j)];
-			sum += a[get_array_loc(N, i+1, j)];
-			sum += a[get_array_loc(N, i+1, j-1)];
-			sum += a[get_array_loc(N, i, j-1)];
+			sum += a[get_array_loc(M, i-1, j-1)];
+			sum += a[get_array_loc(M, i-1, j)];
+			sum += a[get_array_loc(M, i+1, j)];
+			sum += a[get_array_loc(M, i+1, j-1)];
+			sum += a[get_array_loc(M, i, j-1)];
 		}
 		else
 		{
-			sum += a[get_array_loc(N, i-1, j)];
-			sum += a[get_array_loc(N, i-1, j+1)];
-			sum += a[get_array_loc(N, i, j+1)];
-			sum += a[get_array_loc(N, i+1, j+1)];
-			sum += a[get_array_loc(N, i+1, j)];
+			sum += a[get_array_loc(M, i-1, j)];
+			sum += a[get_array_loc(M, i-1, j+1)];
+			sum += a[get_array_loc(M, i, j+1)];
+			sum += a[get_array_loc(M, i+1, j+1)];
+			sum += a[get_array_loc(M, i+1, j)];
 
 		}
 	}
@@ -219,23 +233,23 @@ int cal_live_neighbor(int *a, int numprocs, int i, int j, int N, int M)
 	{
 		if (j > 0 && j < M-1)
 		{
-			sum += a[get_array_loc(N, i-1, j-1)];
-			sum += a[get_array_loc(N, i-1, j)];
-			sum += a[get_array_loc(N, i-1, j+1)];
-			sum += a[get_array_loc(N, i, j+1)];
-			sum += a[get_array_loc(N, i, j-1)];
+			sum += a[get_array_loc(M, i-1, j-1)];
+			sum += a[get_array_loc(M, i-1, j)];
+			sum += a[get_array_loc(M, i-1, j+1)];
+			sum += a[get_array_loc(M, i, j+1)];
+			sum += a[get_array_loc(M, i, j-1)];
 		}
 		else if (j > 0)
 		{
-			sum += a[get_array_loc(N, i-1, j-1)];
-			sum += a[get_array_loc(N, i-1, j)];
-			sum += a[get_array_loc(N, i, j-1)];
+			sum += a[get_array_loc(M, i-1, j-1)];
+			sum += a[get_array_loc(M, i-1, j)];
+			sum += a[get_array_loc(M, i, j-1)];
 		}
 		else
 		{
-			sum += a[get_array_loc(N, i-1, j)];
-			sum += a[get_array_loc(N, i-1, j+1)];
-			sum += a[get_array_loc(N, i, j+1)];
+			sum += a[get_array_loc(M, i-1, j)];
+			sum += a[get_array_loc(M, i-1, j+1)];
+			sum += a[get_array_loc(M, i, j+1)];
 
 		}
 	}
@@ -243,23 +257,23 @@ int cal_live_neighbor(int *a, int numprocs, int i, int j, int N, int M)
 	{
 		if (j > 0 && j < M-1)
 		{
-			sum += a[get_array_loc(N, i, j+1)];
-			sum += a[get_array_loc(N, i+1, j+1)];
-			sum += a[get_array_loc(N, i+1, j)];
-			sum += a[get_array_loc(N, i+1, j-1)];
-			sum += a[get_array_loc(N, i, j-1)];
+			sum += a[get_array_loc(M, i, j+1)];
+			sum += a[get_array_loc(M, i+1, j+1)];
+			sum += a[get_array_loc(M, i+1, j)];
+			sum += a[get_array_loc(M, i+1, j-1)];
+			sum += a[get_array_loc(M, i, j-1)];
 		}
 		else if (j > 0)
 		{
-			sum += a[get_array_loc(N, i+1, j)];
-			sum += a[get_array_loc(N, i+1, j-1)];
-			sum += a[get_array_loc(N, i, j-1)];
+			sum += a[get_array_loc(M, i+1, j)];
+			sum += a[get_array_loc(M, i+1, j-1)];
+			sum += a[get_array_loc(M, i, j-1)];
 		}
 		else
 		{
-			sum += a[get_array_loc(N, i, j+1)];
-			sum += a[get_array_loc(N, i+1, j+1)];
-			sum += a[get_array_loc(N, i+1, j)];
+			sum += a[get_array_loc(M, i, j+1)];
+			sum += a[get_array_loc(M, i+1, j+1)];
+			sum += a[get_array_loc(M, i+1, j)];
 
 		}
 
@@ -267,9 +281,9 @@ int cal_live_neighbor(int *a, int numprocs, int i, int j, int N, int M)
 	return sum;
 }
 
-int get_array_loc(int N, int i, int j)
+int get_array_loc(int M, int i, int j)
 {
-	return N * i + j;
+	return M * i + j;
 }
 
 int live_or_die(int live_nb, int p)
@@ -296,7 +310,7 @@ void display(int N, int M, int myid, int *a, int numprocs)
 {
 	for (int i=0;i<N;i++){
 		for (int j = 0; j < M; j++) { 
-		    printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(N, i, j)]); 
+		    printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
 		    //printf("%d, ", a[k]); 
 		} 
 		printf("\n"); 
@@ -307,7 +321,7 @@ void set_array_zero(int N, int M, int *a)
 {
 	for (int i=0;i<N;i++){
 		for (int j = 0; j < M; j++) { 
-		    a[get_array_loc(N, i, j)] = 0;
+		    a[get_array_loc(M, i, j)] = 0;
 		} 
 	}
 } 
