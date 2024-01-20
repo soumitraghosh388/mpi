@@ -9,6 +9,7 @@ int cal_live_neighbor(int *, int, int, int, int, int);
 int get_array_loc(int, int, int);
 int live_or_die(int, int);
 void display(int, int, int, int *, int);
+void set_array_zero(int, int, int *);
 
 int main(int argc, char *argv[])
 {
@@ -119,17 +120,10 @@ int main(int argc, char *argv[])
 			char *token = strtok(file_contents, " ");
 			while (token != NULL)
 			{
-				/*if (strtol(token, NULL, 10) == 1){
-					a[j] = 1;
-					j++;
-				}*/
-				
 				a[j] = strtol(token, NULL, 10);
 				printf("%d, ", a[j]); 
 				j++;
 				token = strtok(NULL, " ");
-				
-				//printf("<%d> j \n", j); 
 			}
 			printf("\n"); 
 			
@@ -143,7 +137,7 @@ int main(int argc, char *argv[])
 	else 
 		MPI_Recv (a, N*M, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
 	
-	memcpy(temp_a, a, N*M*sizeof(int));
+	//memcpy(temp_a, a, N*M*sizeof(int));
 	
 	/*for (int k = 0; k < N*M; k++) { 
             printf("[%d]: %d, ", myid, a[k]); 
@@ -156,17 +150,21 @@ int main(int argc, char *argv[])
         printf("[%d]: sum: %d \n", myid, sum); */
 	//printf("[%d]: After Bcast, buf is %f\n", myid, a[2][2]);
 	//display(N, M, myid, temp_a, numprocs);
-	int live_nb = 0, k = 0;
-	//int n_row_per_proc = ceil((float)N/numprocs);
-	for (int i = myid; i < N; i += numprocs) {
-		for (int j = 0; j < M ; j++){
-			k = get_array_loc(N, i, j);
-			live_nb = cal_live_neighbor(a, numprocs, i, j, N, M);
-			//printf("<%d,%d> live_nb: %d \n", i,j, live_nb); 
-			int q = live_or_die(live_nb, a[k]);
-			//printf("<%d,%d> q: %d \n", i,j, q); 
-			temp_a[k] = q;
+	for(int l = 0; l<T;l++)
+	{
+		int live_nb = 0, k = 0;
+		//int n_row_per_proc = ceil((float)N/numprocs);
+		for (int i = myid; i < N; i += numprocs) {
+			for (int j = 0; j < M ; j++){
+				k = get_array_loc(N, i, j);
+				live_nb = cal_live_neighbor(a, numprocs, i, j, N, M);
+				//printf("<%d,%d> live_nb: %d \n", i,j, live_nb); 
+				int q = live_or_die(live_nb, a[k]);
+				//printf("<%d,%d> q: %d \n", i,j, q); 
+				temp_a[k] = q;
+			}
 		}
+		memcpy(a, temp_a, N*M*sizeof(int));
 	}
 	printf("\nAfter ----\n");
 	display(N, M, myid, temp_a, numprocs);
@@ -177,7 +175,7 @@ int main(int argc, char *argv[])
         printf("[%d]: sum: %d \n", myid, sum); 
 	
 	if (a != NULL) free(a);
-	free(temp_a);
+	//free(temp_a);
 	MPI_Finalize();
 	return 0;
 }
@@ -304,6 +302,15 @@ void display(int N, int M, int myid, int *a, int numprocs)
 		printf("\n"); 
 	}
 }
+
+void set_array_zero(int N, int M, int *a)
+{
+	for (int i=0;i<N;i++){
+		for (int j = 0; j < M; j++) { 
+		    a[get_array_loc(N, i, j)] = 0;
+		} 
+	}
+} 
 
 
 
