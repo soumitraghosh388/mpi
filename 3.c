@@ -131,15 +131,31 @@ int main(int argc, char *argv[])
 			MPI_Send (a, N*M, MPI_INT, i, 1, MPI_COMM_WORLD);
 		}
 		fclose(in_file);
-		free(file_contents);
+		
 	}
 	else 
 		MPI_Recv (a, N*M, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
-		
+	if (file_contents != NULL) free(file_contents);
 	if (N % numprocs == 0)
 		n_row_per_proc = N/numprocs;
 	else
+	{
 		n_row_per_proc = N/numprocs + 1;
+		/*if (N % n_row_per_proc == 0)
+		{
+			int tmp_nprocs = numprocs;
+			numprocs = N/n_row_per_proc;
+			for (int i = 1; i<= (tmp_nprocs-numprocs);i++)
+			{
+				if (myid == tmp_nprocs-i)
+				{
+					printf("exiting %d \n", myid);
+					MPI_Finalize();
+   					exit(1);
+				}
+			}
+		}*/
+	}
 		
 	temp_a = (int*)calloc(n_row_per_proc*M, sizeof(int)); 
 	
@@ -174,13 +190,24 @@ int main(int argc, char *argv[])
 			}
 		}
 		//memcpy(a, temp_a, N*M*sizeof(int));
-		MPI_Gather (temp_a, n_row_per_proc*M, MPI_INT, a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
+		if (N % numprocs != 0 && myid == numprocs-1)
+		{
+			printf("modnot0 %d\n", myid);
+			MPI_Gather (temp_a, (N%n_row_per_proc)*M, MPI_INT, a, (N%n_row_per_proc)*M, MPI_INT, 0, MPI_COMM_WORLD);
+		}
+		else
+		{
+			printf("mod0 %d\n", myid);
+			MPI_Gather (temp_a, n_row_per_proc*M, MPI_INT, a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
+		}
 		MPI_Bcast(a, N*M, MPI_INT, 0, MPI_COMM_WORLD);
 	}
 	printf("\nAfter ----\n");
 	if(myid==0)
 		display(N, M, myid, a, numprocs);
         printf("\n"); 
+        if(myid==numprocs-1)
+        	display(N%n_row_per_proc, M, myid, temp_a, numprocs);
         int sum = 0;
         for (int i = 0; i< N*M ; i++)
         	sum = sum + a[i];
