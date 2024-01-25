@@ -11,6 +11,7 @@ void DFS_traverse(int **, int *, int, int);
 void update_array(int *, int, int, int);
 int get_avail_pos(int *, int, int);
 void get_children(int, int *, int *, int);
+void mem_copy(int *, int *, int, int);
 
 int n_ways = 0;
 int prev_depth = 0;
@@ -109,7 +110,8 @@ void DFS_traverse(int **a_bck_array, int *a, int v, int N)
 	prev_depth = cur_depth;
 
 	a[v] = 1;
-	memcpy(a_bck_array[cur_depth], a, N*N*sizeof(int));
+	//memcpy(a_bck_array[cur_depth], a, N*N*sizeof(int));
+	mem_copy(a_bck_array[cur_depth], a, 0, N*N-1);
 
 	for(int i = 0;i<N;i++)
 	{
@@ -124,23 +126,25 @@ void DFS_traverse(int **a_bck_array, int *a, int v, int N)
 	}
 	else
 	{
-        bool ch_not_visited = false;
+        	bool ch_not_visited = false;
 		update_array(a, col, cur_depth, N);
 		for (int i=min_pos;i<=max_pos;i++)
 		{
 			if(a[i] == 0)
 			{
-                ch_not_visited = true;
+				ch_not_visited = true;
 				DFS_traverse(a_bck_array, a, i, N);
-            }
+	    		}
 		}
 		if (!ch_not_visited)
-            memcpy(a, a_bck_array[cur_depth], N*N*sizeof(int));
-        if (prev_depth > cur_depth)
-        {
-            memcpy(a, a_bck_array[cur_depth], N*N*sizeof(int));
-            prev_depth = cur_depth;
-        }
+            		//memcpy(a, a_bck_array[cur_depth], N*N*sizeof(int));
+            		mem_copy(a, a_bck_array[cur_depth], 0, N*N-1);
+		if (prev_depth > cur_depth)
+		{
+		    //memcpy(a, a_bck_array[cur_depth], N*N*sizeof(int));
+		    mem_copy(a, a_bck_array[cur_depth], 0, N*N-1);
+		    prev_depth = cur_depth;
+		}
 	}
 
 }
@@ -199,7 +203,11 @@ void get_children(int i, int *min_pos, int *max_pos, int N)
 	}
 }
 
-
+void mem_copy(int *dest, int *src, int min_pos, int max_pos)
+{
+	for(int i=min_pos, j=0;i<=max_pos;i++, j++)
+			dest[j] = src[i];
+}
 
 
 
