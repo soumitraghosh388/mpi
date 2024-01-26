@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
 	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
 	MPI_Status status;
-	//int SIZE = 4;
+
 	int nmt[3];
 	int *a, *temp_a;
 	int i = 0, j = 0, l = 0;
@@ -30,63 +30,9 @@ int main(int argc, char *argv[])
 	char *file_contents = malloc(sb.st_size);
 	tt0 = MPI_Wtime();
 	
-
-	//printf("[%d]: Before Bcast, buf is %f\n", myid, a);
-	/*if (myid == 0) 
-	{
-		in_file = fopen(filename,"r");
-		struct stat sb;
-		stat(filename, &sb);
-		char *file_contents = malloc(sb.st_size);
-		int i = 0, j = 0, l = 0;
-		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
-			if (i == 0)
-			{
-				char *token = strtok(file_contents, " ");
-				
-				while (token != NULL)
-				{
-					nmt[l] = strtol(token, NULL, 10);
-					token = strtok(NULL, " ");
-					l++;
-				}
-				N = nmt[0];
-				M = nmt[1];
-				T = nmt[2];
-				i++;
-				//printf("[%d]: N,M,T is %d %d %d\n", myid, N,M,T);
-				a = (int*)calloc(N*M, sizeof(int)); 
-			}
-			else
-			{
-				//printf("%d > %s\n", myid, file_contents);
-				
-				char *token = strtok(file_contents, " ");
-				while (token != NULL)
-				{
-					a[j] = strtol(token, NULL, 10);
-					printf("%d, ", a[j]); 
-					token = strtok(NULL, " ");
-					j++;
-					//printf("<%d> j \n", j); 
-				}
-				printf("\n"); 
-			}
-			
-		}
-		fclose(in_file);
-		free(file_contents);
-	}*/
-	/*for (int k = 0; k < N*M; ++k) { 
-            //printf("[%d]: %d, ", myid, a[k]); 
-            printf("%d, ", a[k]); 
-        } */
         if (myid == 0)
         {
         	in_file = fopen(filename,"r");
-		//struct stat sb;
-		//stat(filename, &sb);
-		//char *file_contents = malloc(sb.st_size);
 		
 		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
 			char *token = strtok(file_contents, " ");
@@ -101,8 +47,6 @@ int main(int argc, char *argv[])
 			T = nmt[2];
 			break;
 		}
-		//fclose(in_file);
-		//free(file_contents);
         }
 	MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -115,6 +59,7 @@ int main(int argc, char *argv[])
 	
 	if (myid == 0)
         {
+        	printf("Printing Input file content : \n");
 		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
 			char *token = strtok(file_contents, " ");
 			while (token != NULL)
@@ -159,23 +104,8 @@ int main(int argc, char *argv[])
 		
 	temp_a = (int*)calloc(n_row_per_proc*M, sizeof(int)); 
 	
-	//memcpy(temp_a, a, N*M*sizeof(int));
-	
-	/*for (int k = 0; k < N*M; k++) { 
-            printf("[%d]: %d, ", myid, a[k]); 
-            //printf("%d, ", a[k]); 
-        } 
-        printf("\n"); 
-        int sum = 0;
-        for (int i = 0; i< N*M ; i++)
-        	sum = sum + a[i];
-        printf("[%d]: sum: %d \n", myid, sum); */
-	//printf("[%d]: After Bcast, buf is %f\n", myid, a[2][2]);
-	//display(N, M, myid, temp_a, numprocs);
-	
 	for(int l = 0; l<T;l++)
 	{
-		
 		//MPI_Scatter(a, n_row_per_proc*M, MPI_INT, temp_a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
 		int live_nb = 0, k = 0, r = 0;
 		for (int i = myid*n_row_per_proc; i < (myid+1)*n_row_per_proc && i < N; i++) {
@@ -192,31 +122,34 @@ int main(int argc, char *argv[])
 		//memcpy(a, temp_a, N*M*sizeof(int));
 		if (N % numprocs != 0 && myid == numprocs-1)
 		{
-			printf("modnot0 %d\n", myid);
+			//printf("modnot0 %d\n", myid);
 			MPI_Gather (temp_a, (N%n_row_per_proc)*M, MPI_INT, a, (N%n_row_per_proc)*M, MPI_INT, 0, MPI_COMM_WORLD);
 		}
 		else
 		{
-			printf("mod0 %d\n", myid);
+			//printf("mod0 %d\n", myid);
 			MPI_Gather (temp_a, n_row_per_proc*M, MPI_INT, a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
 		}
 		MPI_Bcast(a, N*M, MPI_INT, 0, MPI_COMM_WORLD);
 	}
-	printf("\nAfter ----\n");
+	
 	if(myid==0)
+	{
+		printf("\nOutput after %d generations : \n", T);
 		display(N, M, myid, a, numprocs);
+	}
         printf("\n"); 
-        if(myid==numprocs-1)
+        /*if(myid==numprocs-1)
         	display(N%n_row_per_proc, M, myid, temp_a, numprocs);
         int sum = 0;
         for (int i = 0; i< N*M ; i++)
         	sum = sum + a[i];
-        printf("[%d]: sum: %d \n", myid, sum); 
+        printf("[%d]: sum: %d \n", myid, sum); */
 	
 	if (a != NULL) free(a);
 	if (temp_a != NULL) free(temp_a);
 	ttf = MPI_Wtime();
-	printf("%d > %10f\n", myid, (ttf-tt0));
+	printf("Process %d took %10f seconds.\n", myid, (ttf-tt0));
 	MPI_Finalize();
 	return 0;
 }
@@ -337,8 +270,8 @@ void display(int N, int M, int myid, int *a, int numprocs)
 {
 	for (int i=0;i<N;i++){
 		for (int j = 0; j < M; j++) { 
-		    printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
-		    //printf("%d, ", a[k]); 
+		    //printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
+		    printf("%d, ", a[get_array_loc(M, i, j)]); 
 		} 
 		printf("\n"); 
 	}

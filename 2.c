@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
 	
 	if (myid == 0)
         {
+        	printf("Printing Input file content : \n");
         	in_file = fopen(filename,"r");
 		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
 			char *token = strtok(file_contents, " ");
@@ -52,7 +53,6 @@ int main(int argc, char *argv[])
 	
 	a = (int*)calloc(N*N, sizeof(int)); 
 	tmp_a = (int*)calloc(N*n_row_per_proc, sizeof(int));
-	//tmp_a_cpy = (int*)calloc(N*n_row_per_proc, sizeof(int));
 	
 	if (myid == 0)
         {
@@ -68,58 +68,21 @@ int main(int argc, char *argv[])
 			printf("\n"); 
 			
 		}
-		/*for (i = 0; i < numprocs; i++) {
-			for(int l=N*i*n_row_per_proc, m=0;l<N*(i+1)*n_row_per_proc;l++, m++)
-			{
-				if (i==0)
-					tmp_a_cpy[m] = a[l];
-				else
-					tmp_a[m] = a[l];
-			}
-			//display(n_row_per_proc, N, i, tmp_a, numprocs);
-			if (i>0) MPI_Send (tmp_a, N*n_row_per_proc, MPI_INT, i, 1, MPI_COMM_WORLD);
-		}
-		tmp_a = tmp_a_cpy;*/
+
 		fclose(in_file);
 	}
-	/*else 
-		MPI_Recv (tmp_a, N*n_row_per_proc, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);*/
+
 		
 	div_a_to_proc(myid, N, n_row_per_proc, numprocs, tmp_a, a, status);
 	if (file_contents != NULL) free(file_contents);
-	//if (tmp_a != NULL) free(tmp_a);
-	//if (tmp_a_cpy != NULL) free(tmp_a_cpy);
-	
-	/*for (int i=0;i<N;i++){
-		for (int j = 0; j < N; j++) {
-			if (a[get_array_loc(N, i, j)] == -1)
-				a[get_array_loc(N, i, j)] = INFINITY;
-		}
-	}*/
-	
-	//display(1, N, myid, tmp_a, numprocs);
-	
+
 	kth_row = (int*)calloc(N, sizeof(int)); 
 	
 	for(int k = 0;k<N;k++){
-		/*for(int l=N*k, m=0;l<N*(k+1);l++, m++)
-			kth_row[m] = a[l];*/
+
 		mem_copy(kth_row, a, N*k, N*(k+1)-1);
 		MPI_Bcast(kth_row, N, MPI_INT, 0, MPI_COMM_WORLD);
-		/*for (int i = myid*n_row_per_proc; i < (myid+1)*n_row_per_proc && i < N; i++) {
-			for (int j = 0; j < N ; j++){
-				int dist_ik = a[get_array_loc(N, i, k)];
-				int dist_kj = a[get_array_loc(N, k, j)];
-				if (dist_ik == -1 || dist_kj == -1)
-					continue;
-				else
-				{
-					if (a[get_array_loc(N, i, j)] == -1 || a[get_array_loc(N, i, j)] > (dist_ik + dist_kj))
-						a[get_array_loc(N, i, j)] = dist_ik + dist_kj;
-				}
-				
-			}
-		}*/
+
 		for (int i = 0; i < n_row_per_proc; i++) {
 			for (int j = 0; j < N ; j++){
 				int dist_ik = tmp_a[get_array_loc(N, i, k)];
@@ -138,10 +101,13 @@ int main(int argc, char *argv[])
 		div_a_to_proc(myid, N, n_row_per_proc, numprocs, tmp_a, a, status);
 	}
 	MPI_Gather (tmp_a, n_row_per_proc*N, MPI_INT, a, n_row_per_proc*N, MPI_INT, 0, MPI_COMM_WORLD);
-	if (myid == 0) display(N, N, 0, a, numprocs);
-	
+	if (myid == 0) 
+	{
+		printf("\nOutput : \n");
+		display(N, N, 0, a, numprocs);
+	}
 	ttf = MPI_Wtime();
-	printf("%d > %10f\n", myid, (ttf-tt0));
+	//printf("%d > %10f\n", myid, (ttf-tt0));
 	if (a != NULL) free(a);
 	MPI_Finalize();
 	return 0;
@@ -151,8 +117,8 @@ void display(int N, int M, int myid, int *a, int numprocs)
 {
 	for (int i=0;i<N;i++){
 		for (int j = 0; j < M; j++) { 
-		    printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
-		    //printf("%d, ", a[k]); 
+		    //printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
+		    printf("%d, ", a[get_array_loc(M, i, j)]); 
 		} 
 		printf("\n"); 
 	}

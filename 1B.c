@@ -12,14 +12,14 @@ void update_array(int *, int, int, int);
 int get_avail_pos(int *, int, int);
 void get_children(int, int *, int *, int);
 void mem_copy(int *, int *, int, int);
+void display(int, int, int, int *, int);
 
-int n_ways = 0;
+int n_ways_local = 0;
 int prev_depth = 0;
 
 int main(int argc, char *argv[])
 {
-	int N = strtol(argv[1], NULL, 10);
-	int myid, numprocs, tag = 1, sel_value = 0;
+	int myid, numprocs, tag = 1, sel_value = 0, N, n_col_per_proc = 0, n_ways = 0;
 	double tt0, ttf;
 	int *a, *a_bck, *sel, i = 0, n, fst_row_tr_count = 0;
 	int **a_bck_array;
@@ -31,69 +31,41 @@ int main(int argc, char *argv[])
 	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
 	MPI_Status status;
 	
-	//printf("%d \n", N);
 	
+	if (myid == 0)
+		N = strtol(argv[1], NULL, 10);
+
 	MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	//printf("[%d]>%d \n", myid, N);
 	a_bck_array = (int**)calloc(N, sizeof(int));
 	for (int i = 0; i<N;i++)
 		a_bck_array[i] = (int*)calloc(N*N, sizeof(int));
     	a = (int*)calloc(N*N, sizeof(int));
 	n = N/2;
 	
-	/*set_array_value(N, N, a, 1);
-	set_array_value(1, N, sel, -1);
-	
-	while(i<N && i >= 0 && fst_row_tr_count < n)
+	if (N % numprocs == 0)
+		n_col_per_proc = N/numprocs;
+	else
 	{
-		if (i<N-1)
-		{	
-			if (i==0) fst_row_tr_count++;
-			if (backtrack)
-			
-			sel_value = get_avail_pos(a, i, N);
-			if (sel_value == -1) 
-			{
-				memcpy(a, a_bck, N*N*sizeof(int));
-				i--;
-				backtrack = true;
-			}
-			else 
-			{
-				sel[i] = sel_value;
-				a[get_array_loc(N, i, sel_value)] = 0;
-				update_array(a, sel, i, N);
-				i++;
-			}
-			memcpy(a_bck, a, N*N*sizeof(int));
-		}
+		n_col_per_proc = N/numprocs + 1;
+	}
+	for (int j = 0; j < N; j++)
+	{
+		if  (j >= myid*n_col_per_proc && j < (myid+1)*n_col_per_proc)
+			continue;
 		else
-		{
-			sel_value = get_avail_pos(a, i, N);
-			if (sel_value == -1) 
-			{
-				memcpy(a, a_bck, N*N*sizeof(int));
-				i--;
-			}
-			else 
-			{
-				n_ways++;
-				//sel[i] = sel_value;
-				a[get_array_loc(N, i, sel_value)] = 0;
-				//update_array(a, sel, i, N);
-			}
-			memcpy(a_bck, a, N*N*sizeof(int));
-		}
-	}*/
+			a[get_array_loc(N, 0, j)] = 1;
+	}
+	//display(N, N, myid, a, numprocs);
 	
-	for(int i = 0;i<N;i++)
+	for(int i = myid*n_col_per_proc; i < (myid+1)*n_col_per_proc && i < N; i++)
 	{
 		if(a[i] == 0)
 			DFS_traverse(a_bck_array, a, i, N);
 	}
-
-	printf("total sum : %d\n", n_ways);
-	//free(a);
-	//free(a_bck_array);
+	//printf("[%d]>n_ways_local : %d\n", myid, n_ways_local);
+	MPI_Reduce(&n_ways_local, &n_ways, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+	if (myid == 0) printf("Total no. of ways for %d queens : %d\n", N, n_ways);
 	if(a!=NULL) free(a);
 	for (int i = 0; i<N;i++)
 		if(a_bck_array[i]!=NULL) free(a_bck_array[i]);
@@ -115,14 +87,17 @@ void DFS_traverse(int **a_bck_array, int *a, int v, int N)
 
 	for(int i = 0;i<N;i++)
 	{
-        if(!a_bck_array[i])
-            printf("memory not allocated for %d : \n", i);
+        	if(!a_bck_array[i])
+        	{
+            		printf("memory not allocated for %d : \n", i);
+            		exit(0);
+            	}
 	}
 
 	get_children(v, &min_pos, &max_pos, N);
 	if (min_pos == -1)
 	{
-		n_ways++;
+		n_ways_local++;
 	}
 	else
 	{
@@ -209,7 +184,16 @@ void mem_copy(int *dest, int *src, int min_pos, int max_pos)
 			dest[j] = src[i];
 }
 
-
+void display(int N, int M, int myid, int *a, int numprocs)
+{
+	for (int i=0;i<N;i++){
+		for (int j = 0; j < M; j++) { 
+		    printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
+		    //printf("%d, ", a[get_array_loc(M, i, j)]); 
+		} 
+		printf("\n"); 
+	}
+}
 
 
 
