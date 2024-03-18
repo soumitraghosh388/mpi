@@ -1,291 +1,267 @@
-#include "mpi.h"
-#include <math.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include <sys/stat.h>
+#include <iostream>
+#include <mpi.h>
+using namespace std;
 
-int cal_live_neighbor(int *, int, int, int, int, int);
-int get_array_loc(int, int, int);
-int live_or_die(int, int);
-void display(int, int, int, int *, int);
-void set_array_zero(int, int, int *);
-
-int main(int argc, char *argv[])
+int neighbourCount(int* grid, int i, int j, const int width, const int height)
 {
-	int myid, numprocs, tag = 1, N, M, T, n_row_per_proc = 0;
-	double tt0, ttf;
-	const char *filename = "3_input.in";
-	FILE *in_file;
-	MPI_Init(&argc,&argv);
-	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
-	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
-	MPI_Status status;
+	int count = 0;
+	if (i != 0)
+	{
+		if (grid[(i - 1) * width + j] == 1)
+			count++;
 
-	int nmt[3];
-	int *a, *temp_a;
-	int i = 0, j = 0, l = 0;
-	struct stat sb;
-	stat(filename, &sb);
-	char *file_contents = malloc(sb.st_size);
-	tt0 = MPI_Wtime();
-	
-        if (myid == 0)
-        {
-        	in_file = fopen(filename,"r");
-		
-		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
-			char *token = strtok(file_contents, " ");
-			while (token != NULL)
-			{
-				nmt[l] = strtol(token, NULL, 10);
-				token = strtok(NULL, " ");
-				l++;
-			}
-			N = nmt[0];
-			M = nmt[1];
-			T = nmt[2];
-			break;
+		if (j != width - 1)
+		{
+			if (grid[(i - 1) * width + (j + 1)] == 1)
+				count++;
 		}
-        }
-	MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Bcast(&T, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+		if (j != 0)
+		{
+			if (grid[(i - 1) * width + (j - 1)] == 1)
+				count++;
 
-	//printf("[%d]: N,M,T is %d %d %d\n", myid, N,M,T);
-	
-	a = (int*)calloc(N*M, sizeof(int)); 
-	
-	if (myid == 0)
-        {
-        	printf("Printing Input file content : \n");
-		while (fscanf(in_file, "%[^\n] ", file_contents) != EOF) {
-			char *token = strtok(file_contents, " ");
-			while (token != NULL)
-			{
-				a[j] = strtol(token, NULL, 10);
-				printf("%d, ", a[j]); 
-				j++;
-				token = strtok(NULL, " ");
-			}
-			printf("\n"); 
 			
 		}
-		for (i = 1; i < numprocs; i++) {
-			MPI_Send (a, N*M, MPI_INT, i, 1, MPI_COMM_WORLD);
-		}
-		fclose(in_file);
-		
 	}
-	else 
-		MPI_Recv (a, N*M, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
-	if (file_contents != NULL) free(file_contents);
-	if (N % numprocs == 0)
-		n_row_per_proc = N/numprocs;
-	else
+
+	if (j != 0)
 	{
-		n_row_per_proc = N/numprocs + 1;
-		/*if (N % n_row_per_proc == 0)
+		if (grid[i * width + (j - 1)] == 1)
+			count++;
+	}
+
+	if (j != width-1)
+	{
+		if (grid[i * width + (j + 1)] == 1)
+			count++;
+	}
+
+	if (i != height - 1)
+	{
+		if (grid[(i + 1) * width + j] == 1)
+			count++;
+
+		if (j != width - 1)
 		{
-			int tmp_nprocs = numprocs;
-			numprocs = N/n_row_per_proc;
-			for (int i = 1; i<= (tmp_nprocs-numprocs);i++)
+			if (grid[(i + 1) * width + (j + 1)] == 1)
+				count++;
+
+			
+		}
+
+		if (j != 0)
+		{
+			if (grid[(i + 1) * width + (j - 1)] == 1)
+				count++;
+		}
+	}
+
+	return count;
+}
+
+
+void printGrid(int *grid, int st, int end, const int width, const int height)
+{
+	for (int i = st; i <= end; ++i)
+	{
+		for (int j = 0; j < width; ++j)
+		{
+			printf("%d ", grid[i * width + j]);
+		}
+		printf("\n");
+	}
+}
+
+int main()
+{
+	int rank, nprocs;
+	MPI_Init(NULL, NULL);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
+
+	int width;
+	int height;
+	int iterations;
+
+	//int* grid = new int[width * height];
+	//int* nextGrid = new int[width * height];
+
+	//int k = 0;
+	/*for (int i = 0; i < width; ++i)
+	{
+		for (int j = 0; j < height; ++j)
+		{
+			if (k % (width/3) == 0)
+				grid[i * width + j] = 1;
+			else
+				grid[i * width + j] = 0;
+			k++;
+		}
+	}
+
+	if (rank == 0)
+	{
+		printf("Initial grid\n");
+		printGrid(grid, 0, width - 1, width, height);
+	}*/
+
+        if (rank == 0){
+            scanf("%d", &height);
+            scanf("%d", &width);
+            scanf("%d", &iterations);
+
+        }
+
+        MPI_Bcast(&height, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&width, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&iterations, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	int* grid = new int[width * height];
+        int* nextGrid = new int[width * height];
+        int* temp_grid = NULL;
+	//printf("%d %d %d\n", height, width, iterations);
+	if(rank == 0)
+	{
+		for (int i = 0; i < height; ++i)
+	        {
+	                for (int j = 0; j < width; ++j)
+	                {
+	                        scanf("%d",&grid[i * width + j]); 
+	                }
+	        }
+	}
+	MPI_Bcast(grid, width*height, MPI_INT, 0, MPI_COMM_WORLD);
+        /*for (int i = 0; i < height; ++i)
+        {
+                for (int j = 0; j < width; ++j)
+                {
+                        printf("%d ",grid[i * width + j]);
+                }
+		printf("\n");
+        }*/
+	int heightPerProc = height / nprocs;
+
+	int myStartRow = rank * heightPerProc;
+	int myEndRow = myStartRow + heightPerProc - 1;
+
+	if (rank == nprocs - 1)
+	{
+		myEndRow = height - 1;
+	}
+	
+	//temp_grid = new int[(myEndRow-myStartRow+1)*width];
+	for (int it = 0; it < iterations; ++it)
+	{
+		int k = 0;
+		for (int i = myStartRow; i <= myEndRow; ++i)
+		{
+			for (int j = 0; j < width; ++j)
 			{
-				if (myid == tmp_nprocs-i)
+				int neigh_count = neighbourCount(grid, i, j, width, height);
+
+				if (grid[i * width + j] == 1 && neigh_count < 2)
 				{
-					printf("exiting %d \n", myid);
-					MPI_Finalize();
-   					exit(1);
+					nextGrid[i * width + j] = 0;
 				}
+				else if (grid[i * width + j] == 1 && neigh_count > 3)
+				{
+					nextGrid[i * width + j] = 0;
+				}
+
+				else if (grid[i * width + j] == 1 && (neigh_count == 2 || neigh_count == 3))
+				{
+					nextGrid[i * width + j] = 1;
+				}
+				else if (grid[i * width + j] == 0 && neigh_count == 3)
+				{
+					nextGrid[i * width + j] = 1;
+				}
+				else
+				{
+					nextGrid[i * width + j] = grid[i * width + j];
+				}
+				//temp_grid[k] = nextGrid[i * width + j];
+				//k++;
+			}
+		}
+
+		int* temp = grid;
+		grid = nextGrid;
+		nextGrid = temp;
+
+
+		/*if (rank % 2 == 0)
+		{
+			if (rank != nprocs - 1)
+			{
+				MPI_Send(&grid[myEndRow * width], width, MPI_INT, rank + 1, 100, MPI_COMM_WORLD);
+			}
+
+			if (rank != 0)
+			{
+				MPI_Status status;
+				MPI_Recv(&grid[(myStartRow - 1) * width], width, MPI_INT, rank - 1, 100, MPI_COMM_WORLD, &status);
+			}
+		}
+		else
+		{
+			if (rank != 0)
+			{
+				MPI_Status status;
+				MPI_Recv(&grid[(myStartRow - 1) * width], width, MPI_INT, rank - 1, 100, MPI_COMM_WORLD, &status);
+
+			}
+
+			if (rank != nprocs - 1)
+			{
+				MPI_Send(&grid[myEndRow * width], width, MPI_INT, rank + 1, 100, MPI_COMM_WORLD);
 			}
 		}*/
-	}
-		
-	temp_a = (int*)calloc(n_row_per_proc*M, sizeof(int)); 
-	
-	for(int l = 0; l<T;l++)
-	{
-		//MPI_Scatter(a, n_row_per_proc*M, MPI_INT, temp_a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
-		int live_nb = 0, k = 0, r = 0;
-		for (int i = myid*n_row_per_proc; i < (myid+1)*n_row_per_proc && i < N; i++) {
-			for (int j = 0; j < M ; j++){
-				k = get_array_loc(M, i, j);
-				live_nb = cal_live_neighbor(a, numprocs, i, j, N, M);
-				//printf("<%d,%d> live_nb: %d \n", i,j, live_nb); 
-				int q = live_or_die(live_nb, a[k]);
-				r = k % (n_row_per_proc*M);
-				//printf("[%d]<%d,%d> q: %d \n",myid, i,j, q); 
-				temp_a[r] = q;
+		if (rank != 0)
+		{
+			for (int i = myStartRow; i <= myEndRow; ++i)
+				MPI_Send(&grid[i * width], width, MPI_INT, 0, 100, MPI_COMM_WORLD);
+		}
+		if (rank == 0)
+		{
+			for (int r = 1; r < nprocs; ++r)
+			{
+				int iStartRow = r * heightPerProc;
+				int iEndRow = iStartRow + heightPerProc - 1;
+				if (r == nprocs - 1)
+				{
+					iEndRow = height - 1;
+				}
+				for (int i = iStartRow; i <= iEndRow; ++i)
+				{
+					MPI_Status status;
+					MPI_Recv(&grid[i * width], width, MPI_INT, r, 100, MPI_COMM_WORLD, &status);
+				}
 			}
 		}
-		//memcpy(a, temp_a, N*M*sizeof(int));
-		if (N % numprocs != 0 && myid == numprocs-1)
+		
+		//MPI_Gather (temp_grid, (myEndRow-myStartRow)*width, MPI_INT, grid, (myEndRow-myStartRow)*width, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Bcast(grid, width*height, MPI_INT, 0, MPI_COMM_WORLD);
+		
+		/*if (rank == 0) 
 		{
-			//printf("modnot0 %d\n", myid);
-			MPI_Gather (temp_a, (N%n_row_per_proc)*M, MPI_INT, a, (N%n_row_per_proc)*M, MPI_INT, 0, MPI_COMM_WORLD);
-		}
-		else
-		{
-			//printf("mod0 %d\n", myid);
-			MPI_Gather (temp_a, n_row_per_proc*M, MPI_INT, a, n_row_per_proc*M, MPI_INT, 0, MPI_COMM_WORLD);
-		}
-		MPI_Bcast(a, N*M, MPI_INT, 0, MPI_COMM_WORLD);
+			printf("\n iter : %d\n", it);
+			printGrid(grid, 0, height-1, width, height);
+		}*/
+		//MPI_Allgather(temp_grid, (myEndRow-myStartRow+1)*width, MPI_INT, grid, (myEndRow-myStartRow+1)*width, MPI_INT, MPI_COMM_WORLD);
 	}
-	
-	if(myid==0)
-	{
-		printf("\nOutput after %d generations : \n", T);
-		display(N, M, myid, a, numprocs);
-	}
-        printf("\n"); 
-        /*if(myid==numprocs-1)
-        	display(N%n_row_per_proc, M, myid, temp_a, numprocs);
-        int sum = 0;
-        for (int i = 0; i< N*M ; i++)
-        	sum = sum + a[i];
-        printf("[%d]: sum: %d \n", myid, sum); */
-	
-	if (a != NULL) free(a);
-	if (temp_a != NULL) free(temp_a);
-	ttf = MPI_Wtime();
-	printf("Process %d took %10f seconds.\n", myid, (ttf-tt0));
+
+
+	//printf("Final grid %d---%d\n", myStartRow, myEndRow);
+	if (rank == 0) printGrid(grid, 0, height-1, width, height);
+
+	delete[] grid;
+	delete[] nextGrid;
+	//delete[] temp_grid;
+
 	MPI_Finalize();
+
 	return 0;
 }
-
-int cal_live_neighbor(int *a, int numprocs, int i, int j, int N, int M)
-{
-	int sum = 0;
-	// [i-1,j-1], [i-1,j], [i-1,j+1], [i,j+1], [i+1,j+1], [i+1,j], [i+1,j-1], [i,j-1]
-	if (i > 0 && i < N-1)
-	{
-		if (j > 0 && j < M-1)
-		{
-			sum += a[get_array_loc(M, i-1, j-1)];
-			sum += a[get_array_loc(M, i-1, j)];
-			sum += a[get_array_loc(M, i-1, j+1)];
-			sum += a[get_array_loc(M, i, j+1)];
-			sum += a[get_array_loc(M, i+1, j+1)];
-			sum += a[get_array_loc(M, i+1, j)];
-			sum += a[get_array_loc(M, i+1, j-1)];
-			sum += a[get_array_loc(M, i, j-1)];
-		}
-		else if (j > 0)
-		{
-			sum += a[get_array_loc(M, i-1, j-1)];
-			sum += a[get_array_loc(M, i-1, j)];
-			sum += a[get_array_loc(M, i+1, j)];
-			sum += a[get_array_loc(M, i+1, j-1)];
-			sum += a[get_array_loc(M, i, j-1)];
-		}
-		else
-		{
-			sum += a[get_array_loc(M, i-1, j)];
-			sum += a[get_array_loc(M, i-1, j+1)];
-			sum += a[get_array_loc(M, i, j+1)];
-			sum += a[get_array_loc(M, i+1, j+1)];
-			sum += a[get_array_loc(M, i+1, j)];
-
-		}
-	}
-	else if (i > 0)
-	{
-		if (j > 0 && j < M-1)
-		{
-			sum += a[get_array_loc(M, i-1, j-1)];
-			sum += a[get_array_loc(M, i-1, j)];
-			sum += a[get_array_loc(M, i-1, j+1)];
-			sum += a[get_array_loc(M, i, j+1)];
-			sum += a[get_array_loc(M, i, j-1)];
-		}
-		else if (j > 0)
-		{
-			sum += a[get_array_loc(M, i-1, j-1)];
-			sum += a[get_array_loc(M, i-1, j)];
-			sum += a[get_array_loc(M, i, j-1)];
-		}
-		else
-		{
-			sum += a[get_array_loc(M, i-1, j)];
-			sum += a[get_array_loc(M, i-1, j+1)];
-			sum += a[get_array_loc(M, i, j+1)];
-
-		}
-	}
-	else
-	{
-		if (j > 0 && j < M-1)
-		{
-			sum += a[get_array_loc(M, i, j+1)];
-			sum += a[get_array_loc(M, i+1, j+1)];
-			sum += a[get_array_loc(M, i+1, j)];
-			sum += a[get_array_loc(M, i+1, j-1)];
-			sum += a[get_array_loc(M, i, j-1)];
-		}
-		else if (j > 0)
-		{
-			sum += a[get_array_loc(M, i+1, j)];
-			sum += a[get_array_loc(M, i+1, j-1)];
-			sum += a[get_array_loc(M, i, j-1)];
-		}
-		else
-		{
-			sum += a[get_array_loc(M, i, j+1)];
-			sum += a[get_array_loc(M, i+1, j+1)];
-			sum += a[get_array_loc(M, i+1, j)];
-
-		}
-
-	}
-	return sum;
-}
-
-int get_array_loc(int M, int i, int j)
-{
-	return M * i + j;
-}
-
-int live_or_die(int live_nb, int p)
-{
-	//printf("live_nb, a[k] : %d %d \n", live_nb, p); 
-	if (p == 1){
-		if (live_nb < 2)
-			return 0;
-		else if (live_nb == 2 || live_nb == 3)
-			return 1;
-		else
-			return 0;
-
-	}
-	else{
-		if (live_nb == 3)
-			return 1;
-		else
-			return p;
-	}
-}
-
-void display(int N, int M, int myid, int *a, int numprocs)
-{
-	for (int i=0;i<N;i++){
-		for (int j = 0; j < M; j++) { 
-		    //printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
-		    printf("%d, ", a[get_array_loc(M, i, j)]); 
-		} 
-		printf("\n"); 
-	}
-}
-
-void set_array_zero(int N, int M, int *a)
-{
-	for (int i=0;i<N;i++){
-		for (int j = 0; j < M; j++) { 
-		    a[get_array_loc(M, i, j)] = 0;
-		} 
-	}
-} 
-
-
-
-

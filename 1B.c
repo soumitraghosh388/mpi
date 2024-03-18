@@ -1,208 +1,177 @@
-#include "mpi.h"
-#include <math.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include <stdbool.h>
+/*****************************************************
+ * Name: nqueens.c 
+ * Author: Lucas Carpenter
+ * Date: 12/11/2018
+ * 
+ * For CSC410 Parallel Computing course, Final program
+ *
+ * Compiling: mpic++ -Wall -o nqueens nqueens.c
+ * Usage: mpirun -np <num processors> ./nqueens <n>
 
-int get_array_loc(int, int, int);
-void set_array_value(int, int, int *, int);
-void DFS_traverse(int **, int *, int, int);
-void update_array(int *, int, int, int);
-int get_avail_pos(int *, int, int);
-void get_children(int, int *, int *, int);
-void mem_copy(int *, int *, int, int);
-void display(int, int, int, int *, int);
+ * Description: Program takes in the size of the board
+ *  as an n value, MPI is initialized and loops from 
+ *  rank to factorial(n) incrementing by size each iteration.
+ *  Inside the loop the i-th permutation of a sorted array of 
+ *  incrementing integers is calculated and a check is done 
+ *  to make sure that no 'queen' is on any diagonal. If any of 
+ *  the checks fail, then that iteration short-circuits and 
+ *  checks the next iteration. If the loop reaches the end, 
+ *  then the counter is incremented. The time of execution and 
+ *  number of solutions found are then output.
+ *
+ *****************************************************/
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
 
-int n_ways_local = 0;
-int prev_depth = 0;
+typedef unsigned long long ull;
 
-int main(int argc, char *argv[])
-{
-	int myid, numprocs, tag = 1, sel_value = 0, N, n_col_per_proc = 0, n_ways = 0;
-	double tt0, ttf;
-	int *a, *a_bck, *sel, i = 0, n, fst_row_tr_count = 0;
-	int **a_bck_array;
-	//bool backtrack = false;
-	
+// Prototype declarations
+int nqueens(int proc, ull i, ull n);
+ull factorial(ull n);
 
-	MPI_Init(&argc,&argv);
-	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
-	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
-	MPI_Status status;
-	
-	
-	if (myid == 0)
-		N = strtol(argv[1], NULL, 10);
+/**
+ * int main(int argc, char*argv[])
+ * - The starting point of the program, calculates 
+ * the number of solutions for the n-queens problem
+ * given an input n for an n x n board using MPI.
+ **/
+int main(int argc, char*argv[]) {
 
-	MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	//printf("[%d]>%d \n", myid, N);
-	a_bck_array = (int**)calloc(N, sizeof(int));
-	for (int i = 0; i<N;i++)
-		a_bck_array[i] = (int*)calloc(N*N, sizeof(int));
-    	a = (int*)calloc(N*N, sizeof(int));
-	n = N/2;
-	
-	if (N % numprocs == 0)
-		n_col_per_proc = N/numprocs;
-	else
-	{
-		n_col_per_proc = N/numprocs + 1;
-	}
-	for (int j = 0; j < N; j++)
-	{
-		if  (j >= myid*n_col_per_proc && j < (myid+1)*n_col_per_proc)
-			continue;
-		else
-			a[get_array_loc(N, 0, j)] = 1;
-	}
-	//display(N, N, myid, a, numprocs);
-	
-	for(int i = myid*n_col_per_proc; i < (myid+1)*n_col_per_proc && i < N; i++)
-	{
-		if(a[i] == 0)
-			DFS_traverse(a_bck_array, a, i, N);
-	}
-	//printf("[%d]>n_ways_local : %d\n", myid, n_ways_local);
-	MPI_Reduce(&n_ways_local, &n_ways, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-	if (myid == 0) printf("Total no. of ways for %d queens : %d\n", N, n_ways);
-	if(a!=NULL) free(a);
-	for (int i = 0; i<N;i++)
-		if(a_bck_array[i]!=NULL) free(a_bck_array[i]);
-	if(a_bck_array!=NULL) free(a_bck_array);
-	MPI_Finalize();
+  // declare some variables
+  int rnk, sze;    
+  ull i = 0 , n = 0, total = 0, subtot = 0;
+  double elapsed_time;
+  //const char *filename = argv[1];
+  //fscanf(stdin, "%llu", &n); 
+  //printf("%llu", n);
+  // initialize mpi
+  MPI_Init(&argc, &argv);
+
+  // set rank and size of all procs
+  MPI_Comm_rank(MPI_COMM_WORLD, &rnk);
+  MPI_Comm_size(MPI_COMM_WORLD, &sze);
+
+  // set start time
+  MPI_Barrier(MPI_COMM_WORLD);
+  elapsed_time = -MPI_Wtime();
+  
+  if (rnk == 0)
+	//N = strtol(argv[1], NULL, 10);
+	fscanf(stdin, "%llu", &n); 
+
+  MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  // find out if program has correct command line arguments, prompt if not
+  /*if(argc != 2) {
+    if(rnk == 0)
+      printf("Invalid number of command line arguments.\nFormat should be ./nqueens <n>\n\n");
+  } else {*/
+    // set value of n from command line and create an array of length n
+    //n = atoi(argv[1]);
+    
+
+    // find the max size for the loop below
+    ull max = factorial(n);
+
+    // start at the rnkth permutation and move up sze permutations at a time till at end
+    for( i = rnk; i < max; i+=sze ) {
+      subtot += nqueens(rnk, i, n);
+    }
+
+    // reduce subtotal into grand total
+    MPI_Reduce(&subtot, &total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    
+  //}
+
+  // find ending time
+  MPI_Barrier(MPI_COMM_WORLD);
+  elapsed_time += MPI_Wtime();
+
+  // if root rank, output solutions found and time taken
+  if(0 == rnk) {
+    //printf("Program executed in %8.3f ms\n", 1000*elapsed_time);
+    //printf("Total number of solutions found: %llu\n\n", total);
+    printf("%llu\n", total);
+    fflush(stdout);
+  }
+
+  //exit program
+  MPI_Finalize();
+  return 0;
+}
+
+/**
+ * int nqueens(int proc, int*vals, ull i, ull n)
+ * - nqueens takes an MPI rank, the current ith permutation
+ * and the size of the board and finds the i8th permutation, 
+ * and validates that no queens are in the diagonal of the 
+ * current queen, if there is, we short-circuit and return 0,
+ * otherwise we return 1; 
+ **/
+int nqueens(int proc, ull i, ull n) {
+
+  // declare some variables and allocate arrays
+  int a, b = 0;
+  int *fact = (int *)calloc(n, sizeof(int));
+  int *perm = (int *)calloc(n, sizeof(int));
+
+  // calculate factorial based on i, store in perm
+  fact[b] = 1;
+  while(++b < (int)n) {
+    fact[b] = fact[b-1]*b;
+  }
+  
+  for(b = 0; b < (int)n; ++b) {
+    perm[b] = i / fact[n - 1 - b];
+    i = i % fact[n - 1 - b];
+  }
+
+  for(b = n - 1; b > 0; --b) {
+    for(a = b - 1; a >= 0; --a) {
+      if(perm[a] <= perm[b]) {
+	perm[b]++;
+      }
+    }
+  }
+
+  // free up fact array now
+  free(fact);
+
+  // loop through all elements of the permutation
+  for(ull j = 0; j < n; j++) {
+    int val = perm[j];
+
+    // check everything ahead of j
+    for(int k = j+1, dist = 1; k < (int)n; k++, dist++) {
+      // check if the value +/- dist is equal (means its a diagnoal)
+      if(val - dist == perm[k] || val + dist  == perm[k]) {
+	free(perm);
 	return 0;
+      }
+    }
+
+    // check everything behind j
+    for(int k = j-1, dist = 1; k >= 0; k--, dist++) {
+      // check if the value +/- dist is equal (means its a diagonal)
+      if(val - dist == perm[k] || val + dist  == perm[k]) {
+	free(perm);
+	return 0;
+      }
+    }
+  }
+
+  //iff we made it to here, free and return 1
+  free(perm);
+  return 1;
 }
-
-void DFS_traverse(int **a_bck_array, int *a, int v, int N)
-{
-	int col = v%N;
-	int min_pos, max_pos;
-	int cur_depth = v/N;
-	prev_depth = cur_depth;
-
-	a[v] = 1;
-	//memcpy(a_bck_array[cur_depth], a, N*N*sizeof(int));
-	mem_copy(a_bck_array[cur_depth], a, 0, N*N-1);
-
-	for(int i = 0;i<N;i++)
-	{
-        	if(!a_bck_array[i])
-        	{
-            		printf("memory not allocated for %d : \n", i);
-            		exit(0);
-            	}
-	}
-
-	get_children(v, &min_pos, &max_pos, N);
-	if (min_pos == -1)
-	{
-		n_ways_local++;
-	}
-	else
-	{
-        	bool ch_not_visited = false;
-		update_array(a, col, cur_depth, N);
-		for (int i=min_pos;i<=max_pos;i++)
-		{
-			if(a[i] == 0)
-			{
-				ch_not_visited = true;
-				DFS_traverse(a_bck_array, a, i, N);
-	    		}
-		}
-		if (!ch_not_visited)
-            		//memcpy(a, a_bck_array[cur_depth], N*N*sizeof(int));
-            		mem_copy(a, a_bck_array[cur_depth], 0, N*N-1);
-		if (prev_depth > cur_depth)
-		{
-		    //memcpy(a, a_bck_array[cur_depth], N*N*sizeof(int));
-		    mem_copy(a, a_bck_array[cur_depth], 0, N*N-1);
-		    prev_depth = cur_depth;
-		}
-	}
-
+ 
+/**
+ * ull factorial(ull n)
+ * - factorial is a one-line function to recursively calculate
+ * the factorial for a given n value.
+ **/
+ull factorial(ull n) {
+  return (n == 1 || n == 0) ? 1 : factorial( n - 1 ) * n;
 }
-
-
-void set_array_value(int N, int M, int *a, int value)
-{
-	for (int i=0;i<N;i++){
-		for (int j = 0; j < M; j++) {
-		    a[get_array_loc(M, i, j)] = value;
-		}
-	}
-}
-
-int get_array_loc(int M, int i, int j)
-{
-	return M * i + j;
-}
-
-void update_array(int *a, int col, int i, int N)
-{
-	int gap = 0;
-	for (int row = i+1; row<N;row++)
-	{
-		gap++;
-		a[get_array_loc(N, row, col)] = 1;
-		if ((col - gap) >= 0)
-			a[get_array_loc(N, row, col-gap)] = 1;
-		if ((col + gap) < N)
-			a[get_array_loc(N, row, col+gap)] = 1;
-	}
-}
-
-int get_avail_pos(int *a, int row, int N)
-{
-	for (int j = 0;j<N;j++)
-	{
-		if (a[get_array_loc(N, row, j)] == 1)
-			return j;
-	}
-	return -1;
-}
-
-void get_children(int i, int *min_pos, int *max_pos, int N)
-{
-	int row = i/N + 1;
-	if (row >= N)
-	{
-		*min_pos = -1;
-		*max_pos = -2;
-	}
-	else
-	{
-		*min_pos = N*row;
-		*max_pos = N*(row+1)-1;
-	}
-}
-
-void mem_copy(int *dest, int *src, int min_pos, int max_pos)
-{
-	for(int i=min_pos, j=0;i<=max_pos;i++, j++)
-			dest[j] = src[i];
-}
-
-void display(int N, int M, int myid, int *a, int numprocs)
-{
-	for (int i=0;i<N;i++){
-		for (int j = 0; j < M; j++) { 
-		    printf("[%d]<%d,%d>: %d, ", myid,i,j, a[get_array_loc(M, i, j)]); 
-		    //printf("%d, ", a[get_array_loc(M, i, j)]); 
-		} 
-		printf("\n"); 
-	}
-}
-
-
-
-
-
-
-
-
-
-
-
-
